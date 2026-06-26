@@ -1,25 +1,80 @@
-# Percival
+# WeatherSoon
 
 <p align="center">
-  <!-- mini: none/year/none · bottom: none/weather/none · color: black · weather: NY 21° · year: 1999 -->
-  <img src="screenshots/percival-black.png" width="120" alt="Professional — NY, black">&nbsp;&nbsp;&nbsp;&nbsp;
-  <!-- mini: sunrise/date/sunset · bottom: uv/weather/steps · color: GColorRed · canvas: ink · weather: BOI 82° · sunrise: 6:28 · sunset: 8:12 · uv: 9 · steps: 12k · date: Fri 24 -->
-  <img src="screenshots/percival-crimson.png" width="120" alt="Ink sunrise/sunset — BOI, crimson">&nbsp;&nbsp;&nbsp;&nbsp;
-  <!-- mini: date/month/battery · bottom: high-low/weather/sunset · color: GColorPurpureus · weather: DC 58° hi63 lo47 · sunset: 7:42 · date: Sun 5 -->
-  <img src="screenshots/percival-purple.png" width="120" alt="Commuter — DC, purple">&nbsp;&nbsp;&nbsp;&nbsp;
-  <!-- mini: battery/month/year · bottom: steps/high-low/week · color: GColorBlack · canvas: ink · weather: hi58 lo44 · steps: 19k · month: May · year: 2026 · week: 15 -->
-  <img src="screenshots/percival-ink.png" width="120" alt="Ink minimal — black & white">&nbsp;&nbsp;&nbsp;&nbsp;
-  <!-- mini: date/none/battery · bottom: high-low/steps/weather · color: 0xFF5500 · weather: SF 78° hi82 lo68 · steps: 77k -->
-  <img src="screenshots/percival-orange.png" width="120" alt="Runner — SF, orange">&nbsp;&nbsp;&nbsp;&nbsp;
-  <!-- mini: date/week/battery · bottom: high-low/week/uv · color: GColorPictonBlue · weather: LA 78° hi82 lo65 · uv: 6 · week: 15 -->
-  <img src="screenshots/percival-blue.png" width="120" alt="Week & UV — LA, picton blue">&nbsp;&nbsp;&nbsp;&nbsp;
-  <!-- mini: steps/none/battery · bottom: sunrise/weather/sunset · color: GColorIslamicGreen · weather: DEN 52° hi58 lo41 · sunrise: 6:02 · sunset: 7:48 · steps: 14k -->
-  <img src="screenshots/percival-green.png" width="120" alt="Hiker — DEN, green">
+  <img src="screenshots/weathersoon-black.png" width="120" alt="WeatherSoon in black">&nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="screenshots/weathersoon-crimson.png" width="120" alt="WeatherSoon in crimson ink">&nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="screenshots/weathersoon-purple.png" width="120" alt="WeatherSoon in purple">&nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="screenshots/weathersoon-ink.png" width="120" alt="WeatherSoon in black ink">&nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="screenshots/weathersoon-orange.png" width="120" alt="WeatherSoon in orange">&nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="screenshots/weathersoon-blue.png" width="120" alt="WeatherSoon in blue">&nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="screenshots/weathersoon-green.png" width="120" alt="WeatherSoon in green">
 </p>
 
-A proud Pebble watchface with primary and accent complications.
+WeatherSoon is a Pebble Time 2 watchface based on Andrew Ford's Percival. This fork keeps the crisp, configurable accent-color spirit, but changes the face into a compact near-term weather dashboard for modern Rebble/Pebble use.
 
-- **Primary Complications:** Current weather, daily high/low temps, sunrise time, sunset time, step count, week number, or UV index.
-- **Accent Complications:** Date, steps, battery, sunrise, sunset, year, month, week number, or UV index
+## What Changed From Percival
 
-Color and complications are configurable through settings on the Pebble app.
+- Rebuilt the main layout around Pebble Time 2 / `emery`, with a large center clock and dense status rows.
+- Replaced the original configurable complication grid with a fixed glanceable dashboard:
+  - top row: weekday, date, battery, and connection/quiet-time flags
+  - middle row: heart rate and step count
+  - bottom row: current hour plus the next two hours
+- Added hourly weather from Open-Meteo:
+  - temperature
+  - precipitation probability
+  - UV index with color-coded badges
+- Added a Clay settings page for:
+  - accent color
+  - Paper vs Ink canvas mode
+  - Fahrenheit vs Celsius
+- Swapped the old complication screenshot set for screenshots of the current UI in every supported accent color.
+- Added custom low-resolution drawing for the heart-rate icon and tighter Time 2 visual spacing.
+
+The original Percival app listing is here:
+https://apps.repebble.com/2799cd581c2a4bbbade7f3da
+
+## Features
+
+- Pebble SDK 3 native watchface targeting `emery`
+- Live hourly forecast using phone geolocation and Open-Meteo
+- Weather cache in persistent storage so the face still has data after reloads
+- Configurable accent color and canvas mode
+- Health-service heart rate and step count
+- Color-coded semantic data:
+  - red heart rate icon
+  - blue precipitation percentages
+  - green/orange/red UV risk badges
+
+## Build
+
+```sh
+pebble build
+pebble install --emulator emery
+```
+
+For WSLg on this machine, the emulator needs software OpenGL:
+
+```sh
+LIBGL_ALWAYS_SOFTWARE=1 pebble install --emulator emery
+LIBGL_ALWAYS_SOFTWARE=1 pebble screenshot --emulator emery --no-open screenshots/weathersoon-latest.png
+```
+
+Run `pebble clean` after adding or removing message keys in `package.json`; generated Pebble headers can otherwise go stale.
+
+## Screenshots
+
+The checked-in screenshots are demo captures, generated from `DEMO_MODE` data in [src/c/main.c](src/c/main.c). Normal builds should keep:
+
+```c
+#define DEMO_MODE 0
+```
+
+To regenerate the gallery, temporarily set `DEMO_MODE` to `1`, build and install once, then send `PrimaryColor` and `Canvas` settings to the emulator before each screenshot.
+
+## Project Structure
+
+- [src/c/main.c](src/c/main.c): watchface UI, settings, persistent weather cache, health data, and AppMessage handling
+- [src/pkjs/index.js](src/pkjs/index.js): PebbleKit JS geolocation and Open-Meteo hourly forecast fetch
+- [src/pkjs/config.js](src/pkjs/config.js): Clay settings page
+- [package.json](package.json): Pebble metadata, message keys, fonts, and image resources
+- [screenshots/](screenshots): README/demo captures for each supported accent color

@@ -42,10 +42,9 @@ static GFont s_font_clock;
 #define SETTINGS_KEY 1
 #define WEATHER_KEY 2
 
-// TEMP: when 1, inject edge-case data (wide hour labels, >10k steps, a spread
-// of UV colors) so the layout can be screenshotted in the emulator. Set to 0
-// for normal operation.
-#define DEMO_MODE 1
+// TEMP: when 1, inject edge-case data so the layout can be screenshotted in
+// the emulator. Keep at 0 for normal operation.
+#define DEMO_MODE 0
 
 // New fields must be appended to the end — never insert or reorder.
 // load_settings() reads stored bytes and zero-fills the rest, so
