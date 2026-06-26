@@ -168,7 +168,7 @@ static void demo_stub_weather() {
   s_weather.loaded = true;
   const char *temps[3]  = {"73", "105", "8"};   // varied widths incl. 3 digits
   const char *precip[3] = {"5", "65", "100"};
-  const char *uvs[3]    = {"2", "7", "10"};      // low(green), high(orange), very high(red); tests "UV10" width
+  const char *uvs[3]    = {"10", "7", "2"};      // sunny-to-rainy: high, high, low; tests "UV10" width
   for (int i = 0; i < 3; i++) {
     snprintf(s_weather.hour_temp[i], sizeof(s_weather.hour_temp[i]), "%s", temps[i]);
     snprintf(s_weather.hour_precip[i], sizeof(s_weather.hour_precip[i]), "%s", precip[i]);
@@ -309,7 +309,7 @@ static void update_hour_labels(struct tm *tick_time) {
 #if DEMO_MODE
   snprintf(s_hour_label[0], sizeof(s_hour_label[0]), "NOW");
   snprintf(s_hour_label[1], sizeof(s_hour_label[1]), "10AM");
-  snprintf(s_hour_label[2], sizeof(s_hour_label[2]), "12PM");
+  snprintf(s_hour_label[2], sizeof(s_hour_label[2]), "11AM");
 #endif
 }
 
