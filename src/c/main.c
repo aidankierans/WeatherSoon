@@ -168,7 +168,7 @@ static void demo_stub_weather() {
   s_weather.loaded = true;
   const char *temps[3]  = {"73", "105", "8"};   // varied widths incl. 3 digits
   const char *precip[3] = {"5", "65", "100"};
-  const char *uvs[3]    = {"1", "5", "9"};       // low(green), moderate(amber), very high(red)
+  const char *uvs[3]    = {"2", "7", "10"};      // low(green), high(orange), very high(red); tests "UV10" width
   for (int i = 0; i < 3; i++) {
     snprintf(s_weather.hour_temp[i], sizeof(s_weather.hour_temp[i]), "%s", temps[i]);
     snprintf(s_weather.hour_precip[i], sizeof(s_weather.hour_precip[i]), "%s", precip[i]);
@@ -321,7 +321,7 @@ static void update_heart_rate() {
     snprintf(s_hr_buffer, sizeof(s_hr_buffer), "--");
   }
 #if DEMO_MODE
-  snprintf(s_hr_buffer, sizeof(s_hr_buffer), "128");
+  snprintf(s_hr_buffer, sizeof(s_hr_buffer), "88");
 #endif
   if (s_vitals_layer) {
     layer_mark_dirty(s_vitals_layer);
@@ -381,7 +381,7 @@ static void update_status_buffer(struct tm *tick_time) {
   int steps = (int)health_service_sum_today(HealthMetricStepCount);
   format_steps(steps, s_steps_buffer, sizeof(s_steps_buffer));
 #if DEMO_MODE
-  snprintf(s_steps_buffer, sizeof(s_steps_buffer), "12,364");
+  snprintf(s_steps_buffer, sizeof(s_steps_buffer), "843");
 #endif
 
   if (s_status_layer) {
@@ -420,17 +420,34 @@ static GSize measure(const char *text, GFont font) {
       GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft);
 }
 
-// Small filled heart: two lobes (circles) and a downward triangle.
+// Small filled heart: row-by-row pixel silhouette for crisp low-res rendering.
 static void draw_heart(GContext *ctx, GPoint c, int r, GColor col) {
+  (void)r;
   graphics_context_set_fill_color(ctx, col);
-  graphics_fill_circle(ctx, GPoint(c.x - r + 1, c.y), r);
-  graphics_fill_circle(ctx, GPoint(c.x + r - 1, c.y), r);
-  graphics_context_set_stroke_color(ctx, col);
-  graphics_context_set_stroke_width(ctx, 1);
-  int span = 2 * r - 1;
-  for (int dy = 0; dy <= span; dy++) {
-    int w = span - dy;
-    graphics_draw_line(ctx, GPoint(c.x - w, c.y + dy), GPoint(c.x + w, c.y + dy));
+  static const int8_t rows[][4] = {
+    {-6, -3, 3, 6},
+    {-7, -2, 2, 7},
+    {-8, -1, 1, 8},
+    {-8, 8, 0, -1},
+    {-8, 8, 0, -1},
+    {-8, 8, 0, -1},
+    {-7, 7, 0, -1},
+    {-6, 6, 0, -1},
+    {-5, 5, 0, -1},
+    {-4, 4, 0, -1},
+    {-3, 3, 0, -1},
+    {-2, 2, 0, -1},
+    {-1, 1, 0, -1},
+    {0, 0, 0, -1}
+  };
+  for (int i = 0; i < (int)(sizeof(rows) / sizeof(rows[0])); i++) {
+    int y = c.y - 8 + i;
+    int left = rows[i][0];
+    graphics_fill_rect(ctx, GRect(c.x + left, y, rows[i][1] - left + 1, 1), 0, GCornerNone);
+    if (rows[i][3] >= rows[i][2]) {
+      left = rows[i][2];
+      graphics_fill_rect(ctx, GRect(c.x + left, y, rows[i][3] - left + 1, 1), 0, GCornerNone);
+    }
   }
 }
 
@@ -523,15 +540,15 @@ static void vitals_update_proc(Layer *layer, GContext *ctx) {
   GColor fg = body_color();
   int cy = bounds.size.h / 2;
   int margin = 12;
-  int heart_gap = 8;  // gap between the heart and its number
+  int heart_gap = 5;  // optical gap between the heart and its number
   int steps_gap = 5;  // tighter gap so the full step count fits
 
   // Heart rate, anchored to the left: red heart + dark number
   GSize hs = measure(s_hr_buffer, s_font_24);
   int heart_r = 6;
-  int heart_w = 2 * heart_r;
+  int heart_w = 17;
   int hx = margin;
-  draw_heart(ctx, GPoint(hx + heart_r, cy - 2), heart_r, heart_color());
+  draw_heart(ctx, GPoint(hx + heart_w / 2, cy), heart_r, heart_color());
   graphics_context_set_text_color(ctx, fg);
   graphics_draw_text(ctx, s_hr_buffer, s_font_24,
                      GRect(hx + heart_w + heart_gap, cy - 17, hs.w + 6, 30),
@@ -566,7 +583,7 @@ static void hourly_update_proc(Layer *layer, GContext *ctx) {
 
   // Accent separator bar between the biometrics and the forecast
   graphics_context_set_fill_color(ctx, separator_color());
-  graphics_fill_rect(ctx, GRect(margin, 1, inner, 3), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(margin, 1, inner, 6), 0, GCornerNone);
 
   int y_label = 7;
   int y_temp = 23;
@@ -607,8 +624,8 @@ static void hourly_update_proc(Layer *layer, GContext *ctx) {
     graphics_context_set_fill_color(ctx, uv_color(uvv));
     graphics_fill_rect(ctx, GRect(bxx, y_uv, bw, bh), 4, GCornersAll);
     graphics_context_set_text_color(ctx, GColorWhite);
-    graphics_draw_text(ctx, uvtext, s_font_16, GRect(bxx + pad_x, y_uv - 1, us.w + 4, bh),
-                       GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
+    graphics_draw_text(ctx, uvtext, s_font_16, GRect(bxx, y_uv, bw, bh + 4),
+                       GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
   }
 }
 
