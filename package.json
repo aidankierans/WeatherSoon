@@ -1,18 +1,19 @@
 {
-  "name": "percival",
-  "author": "Andrew Ford",
-  "version": "1.3.0",
+  "name": "WeatherSoon",
+  "author": "Aidan Kierans",
+  "version": "1.0.0",
   "license": "MIT",
+  "repo": "aidankierans/WeatherSoon",
   "keywords": [
     "pebble-app"
   ],
-  "private": true,
+  "private": false,
   "dependencies": {
     "@rebble/clay": "^1.0.8"
   },
   "pebble": {
-    "displayName": "Percival",
-    "uuid": "e18ac84c-91e9-4b27-bf5b-ff5b85e6e85a",
+    "displayName": "Weather Soon",
+    "uuid": "53d53e85-9daf-41d7-94eb-33277bc7267f",
     "sdkVersion": "3",
     "enableMultiJS": true,
     "targetPlatforms": [
