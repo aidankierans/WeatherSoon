@@ -27,22 +27,18 @@
       "location"
     ],
     "messageKeys": {
-      "TEMPERATURE": 0,
-      "TEMP_HIGH": 1,
-      "TEMP_LOW": 2,
-      "CITY": 3,
       "PrimaryColor": 4,
-      "SUNSET": 5,
-      "MiniCompLeft": 6,
-      "MiniCompMiddle": 7,
-      "MiniCompRight": 8,
-      "SUNRISE": 9,
-      "BottomCompLeft": 10,
-      "BottomCompPrimary": 11,
-      "BottomCompRight": 12,
       "TempUnit": 13,
-      "UV_INDEX": 14,
-      "Canvas": 15
+      "Canvas": 15,
+      "HOURLY_TEMP_0": 16,
+      "HOURLY_TEMP_1": 17,
+      "HOURLY_TEMP_2": 18,
+      "HOURLY_PRECIP_0": 19,
+      "HOURLY_PRECIP_1": 20,
+      "HOURLY_PRECIP_2": 21,
+      "HOURLY_UV_0": 22,
+      "HOURLY_UV_1": 23,
+      "HOURLY_UV_2": 24
     },
     "resources": {
       "media": [
@@ -64,35 +60,28 @@
         },
         {
           "type": "font",
-          "name": "FONT_INTER_SEMIBOLD_14",
-          "file": "fonts/Inter-SemiBold.ttf",
-          "characterRegex": "[ -~]",
-          "compatibility": "2.7"
-        },
-        {
-          "type": "font",
           "name": "FONT_INTER_SEMIBOLD_16",
-          "file": "fonts/Inter-SemiBold.ttf",
-          "characterRegex": "[ -~]",
-          "compatibility": "2.7"
-        },
-        {
-          "type": "font",
-          "name": "FONT_INTER_SEMIBOLD_18",
-          "file": "fonts/Inter-SemiBold.ttf",
-          "characterRegex": "[0-9:\\-.kBTQ]",
-          "compatibility": "2.7"
-        },
-        {
-          "type": "font",
-          "name": "FONT_INTER_SEMIBOLD_28",
           "file": "fonts/Inter-SemiBold.ttf",
           "characterRegex": "[ -~°]",
           "compatibility": "2.7"
         },
         {
           "type": "font",
-          "name": "FONT_INTER_SEMIBOLD_68",
+          "name": "FONT_INTER_SEMIBOLD_20",
+          "file": "fonts/Inter-SemiBold.ttf",
+          "characterRegex": "[ -~]",
+          "compatibility": "2.7"
+        },
+        {
+          "type": "font",
+          "name": "FONT_INTER_SEMIBOLD_24",
+          "file": "fonts/Inter-SemiBold.ttf",
+          "characterRegex": "[ -~°]",
+          "compatibility": "2.7"
+        },
+        {
+          "type": "font",
+          "name": "FONT_INTER_SEMIBOLD_52",
           "file": "fonts/Inter-SemiBold.ttf",
           "characterRegex": "[0-9: ]",
           "compatibility": "2.7"
