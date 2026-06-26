@@ -9,8 +9,8 @@ module.exports = [
       {
         "type": "color",
         "messageKey": "PrimaryColor",
-        "label": "Color",
-        "defaultValue": "0x000000"
+        "label": "Accent Color",
+        "defaultValue": "0x006600"
       },
       {
         "type": "select",
