@@ -1,7 +1,7 @@
 module.exports = [
   {
     "type": "heading",
-    "defaultValue": "Percival Settings"
+    "defaultValue": "Weather Soon Settings"
   },
   {
     "type": "section",
