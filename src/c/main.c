@@ -38,6 +38,9 @@ static GFont s_font_clock;
 #define VITALS_HEIGHT 30
 #define HOURLY_HEIGHT 90
 #define CLOCK_HEIGHT 60
+#define CONTENT_RAISE_PX 3
+#define CLOCK_RAISE_PX 2
+#define STATUS_SIDE_INSET 6
 #define WEATHER_POLL_MINUTES 30
 #define SETTINGS_KEY 1
 #define WEATHER_KEY 2
@@ -163,6 +166,16 @@ static void update_status_buffer(struct tm *t);
 static void update_display();
 
 #if DEMO_MODE
+static int demo_battery_level() {
+  if (is_ink()) return 37;
+  if (s_settings.primary_color.argb == GColorFromHEX(0x99353F).argb) return 78;
+  if (s_settings.primary_color.argb == GColorFromHEX(0x955694).argb) return 61;
+  if (s_settings.primary_color.argb == GColorFromHEX(0xE66E6B).argb) return 44;
+  if (s_settings.primary_color.argb == GColorFromHEX(0x4CB4DB).argb) return 23;
+  if (s_settings.primary_color.argb == GColorFromHEX(0x2B4A2C).argb) return 92;
+  return 100;
+}
+
 static void demo_stub_weather() {
   s_weather.loaded = true;
   const char *temps[3]  = {"73", "105", "8"};   // varied widths incl. 3 digits
@@ -257,6 +270,10 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
   if (settings_changed) {
     save_settings();
     window_set_background_color(s_main_window, bg_color());
+#if DEMO_MODE
+    s_battery_level = demo_battery_level();
+    update_status_buffer(NULL);
+#endif
     update_display();
   }
 }
@@ -392,7 +409,12 @@ static void update_status_buffer(struct tm *tick_time) {
 }
 
 static void battery_callback(BatteryChargeState state) {
+#if DEMO_MODE
+  (void)state;
+  s_battery_level = demo_battery_level();
+#else
   s_battery_level = state.charge_percent;
+#endif
   update_status_buffer(NULL);
 }
 
@@ -493,12 +515,12 @@ static void status_update_proc(Layer *layer, GContext *ctx) {
   // Weekday, left aligned
   GSize wd = measure(s_weekday_buffer, s_font_20);
   graphics_draw_text(ctx, s_weekday_buffer, s_font_20,
-                     GRect(4, mid_y - 2, wd.w + 4, 22),
+                     GRect(STATUS_SIDE_INSET, mid_y - 2, wd.w + 4, 22),
                      GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
 
   // Battery, right aligned
   GSize bs = measure(s_battery_buffer, s_font_16);
-  int bx = bounds.size.w - 4 - bs.w;
+  int bx = bounds.size.w - STATUS_SIDE_INSET - bs.w;
   graphics_draw_text(ctx, s_battery_buffer, s_font_16,
                      GRect(bx, mid_y, bs.w + 2, 20),
                      GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
@@ -525,7 +547,7 @@ static void status_update_proc(Layer *layer, GContext *ctx) {
 
   // Month + day, centered in the gap between the weekday and the right side
   GSize md = measure(s_monthday_buffer, s_font_20);
-  int left_edge = 4 + wd.w;
+  int left_edge = STATUS_SIDE_INSET + wd.w;
   int mx = (left_edge + right_limit) / 2 - md.w / 2;
   if (mx < left_edge + 2) mx = left_edge + 2;
   graphics_context_set_text_color(ctx, txt);
@@ -640,7 +662,7 @@ static void update_layout() {
     // Hide the lower stats and center the clock in the remaining space.
     layer_set_hidden(s_hourly_layer, true);
     layer_set_hidden(s_vitals_layer, true);
-    int cy = STATUS_HEIGHT + (bottom - STATUS_HEIGHT - CLOCK_HEIGHT) / 2;
+    int cy = STATUS_HEIGHT + (bottom - STATUS_HEIGHT - CLOCK_HEIGHT) / 2 - CLOCK_RAISE_PX;
     layer_set_frame(s_clock_layer, GRect(0, cy, full.size.w, CLOCK_HEIGHT));
     return;
   }
@@ -648,13 +670,13 @@ static void update_layout() {
   layer_set_hidden(s_hourly_layer, false);
   layer_set_hidden(s_vitals_layer, false);
 
-  int hourly_y = bottom - HOURLY_HEIGHT;
+  int hourly_y = bottom - HOURLY_HEIGHT - CONTENT_RAISE_PX;
   layer_set_frame(s_hourly_layer, GRect(0, hourly_y, full.size.w, HOURLY_HEIGHT));
 
   int vitals_y = hourly_y - VITALS_HEIGHT;
   layer_set_frame(s_vitals_layer, GRect(0, vitals_y, full.size.w, VITALS_HEIGHT));
 
-  int clock_y = STATUS_HEIGHT + (vitals_y - STATUS_HEIGHT - CLOCK_HEIGHT) / 2;
+  int clock_y = STATUS_HEIGHT + (vitals_y - STATUS_HEIGHT - CLOCK_HEIGHT) / 2 - CLOCK_RAISE_PX;
   layer_set_frame(s_clock_layer, GRect(0, clock_y, full.size.w, CLOCK_HEIGHT));
 }
 
