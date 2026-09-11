@@ -19,7 +19,7 @@ Run `pebble clean` when adding or removing messageKeys in package.json — the b
 ## Structure
 
 - `src/c/main.c` — watchface C code (UI, tick handler, persistent storage, weather message handling)
-- `src/pkjs/index.js` — companion JS (geolocation, Open-Meteo weather API)
+- `src/pkjs/index.js` — companion JS (geolocation, Open-Meteo forecast and air-quality APIs)
 - `src/pkjs/config.js` — Clay settings page config
 - `package.json` — app metadata, message keys, font resources
 
@@ -28,6 +28,12 @@ Run `pebble clean` when adding or removing messageKeys in package.json — the b
 - Weather polling interval is defined as `WEATHER_POLL_MINUTES` in both `main.c` and `index.js` — keep them in sync
 - Hours of forecast per fetch is defined as `FORECAST_HOURS` in both `main.c` and `index.js` — keep them in sync, along with the `HOURLY_*_0..N` message keys in package.json. The watch picks which of those hours to show from its own clock (relative to `WEATHER_BASE_TIME`), so the display stays aligned with the hour labels between fetches.
 - Open-Meteo's `precipitation_probability` covers the *preceding* hour, so `index.js` sends the next hour's value for each slot.
+- Weather sources (all keyless Open-Meteo):
+  - Temperature: a regional model when one applies, falling back per hour to `best_match`. NOAA's NBM (`ncep_nbm_conus`) is used inside a North America box, and Canada's GEM (`gem_seamless`) north of 49°N where NBM has no grid. Météo-France (`meteofrance_seamless`) is used when the previous fetch's timezone was France or Spain.
+  - Rain chance: `best_match` everywhere.
+  - UV: the Air Quality API (CAMS), falling back to the forecast API's `uv_index`.
+- Outside NBM's grid, Open-Meteo returns HTTP 200 with invalid JSON (`"latitude": nan`), even in multi-model requests. `fetchForecast` treats a parse failure as "try the next model".
+- The `current` block reflects only the first model in `models=`, so the regional model is listed first.
 - Persistent storage keys: `SETTINGS_KEY = 1` (accent color), `WEATHER_KEY = 2` (cached weather data; loaded only on an exact size match, so changing `WeatherCache` discards old caches)
 - Temperature unit comes from the `TempUnit` Clay setting (Fahrenheit by default)
 

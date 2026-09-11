@@ -37,6 +37,9 @@ https://apps.repebble.com/2799cd581c2a4bbbade7f3da
 
 - Pebble SDK 3 native watchface targeting `emery`
 - Live hourly forecast using phone geolocation and Open-Meteo
+  - temperature from regional models where available (NOAA's National Blend of Models, Canada's GEM, Météo-France), otherwise Open-Meteo's best match
+  - UV index from the Copernicus (CAMS) forecast
+  - the forecast rolls forward on the watch's clock between updates, and NOW uses current conditions
 - Weather cache in persistent storage so the face still has data after reloads
 - Configurable accent color and canvas mode
 - Health-service heart rate and step count
