@@ -1,4 +1,7 @@
 var WEATHER_POLL_MINUTES = 30;
+// Hours of forecast sent to the watch, which rolls forward through them on its
+// own between fetches. Keep in sync with FORECAST_HOURS in main.c.
+var FORECAST_HOURS = 6;
 
 var Clay = require('@rebble/clay');
 var clayConfig = require('./config');
@@ -26,27 +29,20 @@ function getTempUnit() {
   return 'fahrenheit';
 }
 
-function pad2(n) {
-  return (n < 10 ? '0' : '') + n;
-}
-
-// Find the index in the hourly time array for the current local hour, or the
-// first future hour if the current hour isn't present.
-function currentHourIndex(times) {
-  var now = new Date();
-  var prefix = now.getFullYear() + '-' + pad2(now.getMonth() + 1) + '-' +
-    pad2(now.getDate()) + 'T' + pad2(now.getHours());
-  for (var i = 0; i < times.length; i++) {
-    if (times[i].indexOf(prefix) === 0) return i;
-  }
-  for (var j = 0; j < times.length; j++) {
-    if (new Date(times[j]) >= now) return j;
-  }
-  return 0;
+// Index of the hourly entry for the current hour: the last one starting at or
+// before now. Times are unix seconds.
+function currentHourIndex(times, nowSec) {
+  var idx = 0;
+  for (var i = 0; i < times.length && times[i] <= nowSec; i++) idx = i;
+  return idx;
 }
 
 function roundOrUnavailable(v) {
   return (v === null || v === undefined) ? -100 : Math.round(v);
+}
+
+function valueAt(arr, i) {
+  return roundOrUnavailable(i < arr.length ? arr[i] : null);
 }
 
 function locationSuccess(pos) {
@@ -56,9 +52,11 @@ function locationSuccess(pos) {
   var unit = getTempUnit();
   var weatherUrl = 'https://api.open-meteo.com/v1/forecast?' +
     'latitude=' + lat + '&longitude=' + lon +
+    '&current=temperature_2m,uv_index' +
     '&hourly=temperature_2m,precipitation_probability,uv_index' +
     '&temperature_unit=' + unit +
     '&timezone=auto' +
+    '&timeformat=unixtime' +
     '&forecast_days=2';
 
   xhrRequest(weatherUrl, 'GET', function (weatherResp) {
@@ -82,20 +80,24 @@ function locationSuccess(pos) {
     var temps = data.hourly.temperature_2m || [];
     var precip = data.hourly.precipitation_probability || [];
     var uv = data.hourly.uv_index || [];
-    var idx = currentHourIndex(times);
+    var idx = currentHourIndex(times, Date.now() / 1000);
 
-    var msg = {};
-    for (var k = 0; k < 3; k++) {
-      var ii = idx + k;
-      if (ii < times.length) {
-        msg['HOURLY_TEMP_' + k] = roundOrUnavailable(temps[ii]);
-        msg['HOURLY_PRECIP_' + k] = roundOrUnavailable(precip[ii]);
-        msg['HOURLY_UV_' + k] = roundOrUnavailable(uv[ii]);
-      } else {
-        msg['HOURLY_TEMP_' + k] = -100;
-        msg['HOURLY_PRECIP_' + k] = -100;
-        msg['HOURLY_UV_' + k] = -100;
-      }
+    // Current conditions come from 15-minutely model data, so they track the
+    // "NOW" slot better than the top-of-the-hour forecast value.
+    var current = data.current || {};
+
+    var msg = {
+      WEATHER_BASE_TIME: times[idx],
+      CURRENT_TIME: current.time || 0,
+      CURRENT_TEMP: roundOrUnavailable(current.temperature_2m),
+      CURRENT_UV: roundOrUnavailable(current.uv_index)
+    };
+    for (var k = 0; k < FORECAST_HOURS; k++) {
+      msg['HOURLY_TEMP_' + k] = valueAt(temps, idx + k);
+      // precipitation_probability covers the preceding hour, so the chance
+      // for the hour starting at idx + k is reported at idx + k + 1.
+      msg['HOURLY_PRECIP_' + k] = valueAt(precip, idx + k + 1);
+      msg['HOURLY_UV_' + k] = valueAt(uv, idx + k);
     }
 
     Pebble.sendAppMessage(msg,

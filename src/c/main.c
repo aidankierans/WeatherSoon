@@ -6,12 +6,25 @@ extern uint32_t MESSAGE_KEY_TempUnit;
 extern uint32_t MESSAGE_KEY_HOURLY_TEMP_0;
 extern uint32_t MESSAGE_KEY_HOURLY_TEMP_1;
 extern uint32_t MESSAGE_KEY_HOURLY_TEMP_2;
+extern uint32_t MESSAGE_KEY_HOURLY_TEMP_3;
+extern uint32_t MESSAGE_KEY_HOURLY_TEMP_4;
+extern uint32_t MESSAGE_KEY_HOURLY_TEMP_5;
 extern uint32_t MESSAGE_KEY_HOURLY_PRECIP_0;
 extern uint32_t MESSAGE_KEY_HOURLY_PRECIP_1;
 extern uint32_t MESSAGE_KEY_HOURLY_PRECIP_2;
+extern uint32_t MESSAGE_KEY_HOURLY_PRECIP_3;
+extern uint32_t MESSAGE_KEY_HOURLY_PRECIP_4;
+extern uint32_t MESSAGE_KEY_HOURLY_PRECIP_5;
 extern uint32_t MESSAGE_KEY_HOURLY_UV_0;
 extern uint32_t MESSAGE_KEY_HOURLY_UV_1;
 extern uint32_t MESSAGE_KEY_HOURLY_UV_2;
+extern uint32_t MESSAGE_KEY_HOURLY_UV_3;
+extern uint32_t MESSAGE_KEY_HOURLY_UV_4;
+extern uint32_t MESSAGE_KEY_HOURLY_UV_5;
+extern uint32_t MESSAGE_KEY_CURRENT_TEMP;
+extern uint32_t MESSAGE_KEY_CURRENT_UV;
+extern uint32_t MESSAGE_KEY_CURRENT_TIME;
+extern uint32_t MESSAGE_KEY_WEATHER_BASE_TIME;
 
 enum Canvas {
   CANVAS_PAPER = 0,
@@ -42,6 +55,11 @@ static GFont s_font_clock;
 #define CLOCK_RAISE_PX 2
 #define STATUS_SIDE_INSET 6
 #define WEATHER_POLL_MINUTES 30
+// Hours of forecast received per fetch; keep in sync with index.js.
+#define FORECAST_HOURS 6
+// Current conditions older than this fall back to the hourly forecast.
+#define CURRENT_MAX_AGE_MIN 60
+#define WEATHER_NA -100
 #define SETTINGS_KEY 1
 #define WEATHER_KEY 2
 
@@ -123,24 +141,30 @@ static void save_settings() {
   persist_write_data(SETTINGS_KEY, &s_settings, sizeof(s_settings));
 }
 
-// Hourly weather for the current hour and the next two. Each value is the
-// raw integer as a string, or empty when unavailable.
+// Hourly forecast starting at base_time (the top of the hour it was fetched
+// in), plus current conditions valid at current_time. The watch picks which
+// hours to show from its own clock, so the display stays aligned with the
+// hour labels between fetches. Values are WEATHER_NA when unavailable; a
+// base_time of 0 means no data has been received.
 typedef struct {
-  char hour_temp[3][6];
-  char hour_precip[3][6];
-  char hour_uv[3][6];
-  bool loaded;
+  int32_t base_time;
+  int32_t current_time;
+  int16_t temp[FORECAST_HOURS];
+  int16_t precip[FORECAST_HOURS];
+  int16_t uv[FORECAST_HOURS];
+  int16_t current_temp;
+  int16_t current_uv;
 } WeatherCache;
 
 static WeatherCache s_weather;
 
 static void load_weather() {
   memset(&s_weather, 0, sizeof(s_weather));
-  if (persist_exists(WEATHER_KEY)) {
-    int stored = persist_get_size(WEATHER_KEY);
-    if (stored > 0 && (size_t)stored <= sizeof(s_weather)) {
-      persist_read_data(WEATHER_KEY, &s_weather, stored);
-    }
+  // Exact size match only: older versions stored a different layout, and the
+  // fetch on startup replaces a discarded cache quickly.
+  if (persist_exists(WEATHER_KEY) &&
+      persist_get_size(WEATHER_KEY) == (int)sizeof(s_weather)) {
+    persist_read_data(WEATHER_KEY, &s_weather, sizeof(s_weather));
   }
 }
 
@@ -161,6 +185,7 @@ static char s_hour_label[3][8];
 static char s_hour_temp_disp[3][8];
 static char s_hour_rain_disp[3][8];
 static char s_hour_uv_disp[3][8];
+static int s_hour_uv_val[3];  // for the badge color; -1 when unavailable
 
 static void update_status_buffer(struct tm *t);
 static void update_display();
@@ -177,76 +202,105 @@ static int demo_battery_level() {
 }
 
 static void demo_stub_weather() {
-  s_weather.loaded = true;
-  const char *temps[3]  = {"73", "105", "8"};   // varied widths incl. 3 digits
-  const char *precip[3] = {"5", "65", "100"};
-  const char *uvs[3]    = {"10", "7", "2"};      // sunny-to-rainy: high, high, low; tests "UV10" width
-  for (int i = 0; i < 3; i++) {
-    snprintf(s_weather.hour_temp[i], sizeof(s_weather.hour_temp[i]), "%s", temps[i]);
-    snprintf(s_weather.hour_precip[i], sizeof(s_weather.hour_precip[i]), "%s", precip[i]);
-    snprintf(s_weather.hour_uv[i], sizeof(s_weather.hour_uv[i]), "%s", uvs[i]);
+  const int temps[3]  = {73, 105, 8};   // varied widths incl. 3 digits
+  const int precip[3] = {5, 65, 100};
+  const int uvs[3]    = {10, 7, 2};     // sunny-to-rainy: high, high, low; tests "UV10" width
+  time_t now = time(NULL);
+  s_weather.base_time = now;
+  s_weather.current_time = now;
+  for (int i = 0; i < FORECAST_HOURS; i++) {
+    s_weather.temp[i] = i < 3 ? temps[i] : WEATHER_NA;
+    s_weather.precip[i] = i < 3 ? precip[i] : WEATHER_NA;
+    s_weather.uv[i] = i < 3 ? uvs[i] : WEATHER_NA;
   }
+  s_weather.current_temp = temps[0];
+  s_weather.current_uv = uvs[0];
 }
 #endif
 
+// Index into the forecast arrays for the current hour, or -1 with no data.
+static int forecast_offset(time_t now) {
+  if (s_weather.base_time == 0) return -1;
+  int offset = (int)((now - s_weather.base_time) / 3600);
+  return offset < 0 ? 0 : offset;
+}
+
+static void format_weather(char *dest, size_t size, int v, const char *suffix, const char *na) {
+  if (v <= WEATHER_NA) {
+    snprintf(dest, size, "%s", na);
+  } else {
+    snprintf(dest, size, "%d%s", v, suffix);
+  }
+}
+
+// Recomputed every minute: which forecast hours are shown depends on the
+// clock, not just on when the last fetch arrived.
 static void update_hourly_buffers() {
 #if DEMO_MODE
   // Re-apply on every rebuild so a real weather message can't overwrite the
   // edge-case demo data at runtime.
   demo_stub_weather();
 #endif
+  time_t now = time(NULL);
+  int offset = forecast_offset(now);
+  bool current_fresh = s_weather.base_time != 0 &&
+                       now - s_weather.current_time < CURRENT_MAX_AGE_MIN * 60;
+
   for (int i = 0; i < 3; i++) {
-    if (s_weather.loaded && s_weather.hour_temp[i][0]) {
-      snprintf(s_hour_temp_disp[i], sizeof(s_hour_temp_disp[i]), "%s°", s_weather.hour_temp[i]);
-    } else {
-      snprintf(s_hour_temp_disp[i], sizeof(s_hour_temp_disp[i]), "--");
+    int h = offset + i;
+    bool have = offset >= 0 && h < FORECAST_HOURS;
+    int temp = have ? s_weather.temp[h] : WEATHER_NA;
+    int precip = have ? s_weather.precip[h] : WEATHER_NA;
+    int uv = have ? s_weather.uv[h] : WEATHER_NA;
+
+    // NOW prefers current conditions over the top-of-the-hour forecast.
+    if (i == 0 && current_fresh) {
+      if (s_weather.current_temp > WEATHER_NA) temp = s_weather.current_temp;
+      if (s_weather.current_uv > WEATHER_NA) uv = s_weather.current_uv;
     }
-    if (s_weather.loaded && s_weather.hour_precip[i][0]) {
-      snprintf(s_hour_rain_disp[i], sizeof(s_hour_rain_disp[i]), "%s%%", s_weather.hour_precip[i]);
-    } else {
-      snprintf(s_hour_rain_disp[i], sizeof(s_hour_rain_disp[i]), "--");
-    }
+
+    format_weather(s_hour_temp_disp[i], sizeof(s_hour_temp_disp[i]), temp, "°", "--");
+    format_weather(s_hour_rain_disp[i], sizeof(s_hour_rain_disp[i]), precip, "%", "--");
     // UV stores just the number; the "UV" label is drawn separately so it can
     // be colored while the value stays high-contrast.
-    if (s_weather.loaded && s_weather.hour_uv[i][0]) {
-      snprintf(s_hour_uv_disp[i], sizeof(s_hour_uv_disp[i]), "%s", s_weather.hour_uv[i]);
-    } else {
-      snprintf(s_hour_uv_disp[i], sizeof(s_hour_uv_disp[i]), "-");
-    }
+    format_weather(s_hour_uv_disp[i], sizeof(s_hour_uv_disp[i]), uv, "", "-");
+    s_hour_uv_val[i] = uv <= WEATHER_NA ? -1 : uv;
   }
 }
 
-static void read_hourly_int(DictionaryIterator *iter, uint32_t key, char *dest, size_t size) {
+static int16_t read_weather_int(DictionaryIterator *iter, uint32_t key) {
   Tuple *t = dict_find(iter, key);
-  if (!t) return;
+  if (!t) return WEATHER_NA;
   int v = (int)t->value->int32;
-  if (v <= -100) {
-    dest[0] = '\0';  // sentinel for unavailable
-  } else {
-    if (v > 9999) v = 9999;  // keep within the display buffer
-    snprintf(dest, size, "%d", v);
-  }
+  if (v <= WEATHER_NA) return WEATHER_NA;
+  return v > 9999 ? 9999 : v;  // keep within the display buffer
 }
 
 static void inbox_received_callback(DictionaryIterator *iterator, void *context) {
-  bool weather_changed = false;
+  // Weather messages always carry the base time of the forecast.
+  Tuple *base_t = dict_find(iterator, MESSAGE_KEY_WEATHER_BASE_TIME);
+  if (base_t) {
+    uint32_t temp_keys[FORECAST_HOURS] = {
+      MESSAGE_KEY_HOURLY_TEMP_0, MESSAGE_KEY_HOURLY_TEMP_1, MESSAGE_KEY_HOURLY_TEMP_2,
+      MESSAGE_KEY_HOURLY_TEMP_3, MESSAGE_KEY_HOURLY_TEMP_4, MESSAGE_KEY_HOURLY_TEMP_5};
+    uint32_t precip_keys[FORECAST_HOURS] = {
+      MESSAGE_KEY_HOURLY_PRECIP_0, MESSAGE_KEY_HOURLY_PRECIP_1, MESSAGE_KEY_HOURLY_PRECIP_2,
+      MESSAGE_KEY_HOURLY_PRECIP_3, MESSAGE_KEY_HOURLY_PRECIP_4, MESSAGE_KEY_HOURLY_PRECIP_5};
+    uint32_t uv_keys[FORECAST_HOURS] = {
+      MESSAGE_KEY_HOURLY_UV_0, MESSAGE_KEY_HOURLY_UV_1, MESSAGE_KEY_HOURLY_UV_2,
+      MESSAGE_KEY_HOURLY_UV_3, MESSAGE_KEY_HOURLY_UV_4, MESSAGE_KEY_HOURLY_UV_5};
 
-  uint32_t temp_keys[3] = {MESSAGE_KEY_HOURLY_TEMP_0, MESSAGE_KEY_HOURLY_TEMP_1, MESSAGE_KEY_HOURLY_TEMP_2};
-  uint32_t precip_keys[3] = {MESSAGE_KEY_HOURLY_PRECIP_0, MESSAGE_KEY_HOURLY_PRECIP_1, MESSAGE_KEY_HOURLY_PRECIP_2};
-  uint32_t uv_keys[3] = {MESSAGE_KEY_HOURLY_UV_0, MESSAGE_KEY_HOURLY_UV_1, MESSAGE_KEY_HOURLY_UV_2};
-
-  for (int i = 0; i < 3; i++) {
-    if (dict_find(iterator, temp_keys[i]) || dict_find(iterator, precip_keys[i]) ||
-        dict_find(iterator, uv_keys[i])) {
-      weather_changed = true;
+    s_weather.base_time = base_t->value->int32;
+    Tuple *cur_t = dict_find(iterator, MESSAGE_KEY_CURRENT_TIME);
+    s_weather.current_time = cur_t ? cur_t->value->int32 : 0;
+    s_weather.current_temp = read_weather_int(iterator, MESSAGE_KEY_CURRENT_TEMP);
+    s_weather.current_uv = read_weather_int(iterator, MESSAGE_KEY_CURRENT_UV);
+    for (int i = 0; i < FORECAST_HOURS; i++) {
+      s_weather.temp[i] = read_weather_int(iterator, temp_keys[i]);
+      s_weather.precip[i] = read_weather_int(iterator, precip_keys[i]);
+      s_weather.uv[i] = read_weather_int(iterator, uv_keys[i]);
     }
-    read_hourly_int(iterator, temp_keys[i], s_weather.hour_temp[i], sizeof(s_weather.hour_temp[i]));
-    read_hourly_int(iterator, precip_keys[i], s_weather.hour_precip[i], sizeof(s_weather.hour_precip[i]));
-    read_hourly_int(iterator, uv_keys[i], s_weather.hour_uv[i], sizeof(s_weather.hour_uv[i]));
-  }
 
-  if (weather_changed) {
-    s_weather.loaded = true;
     save_weather();
     update_hourly_buffers();
     if (s_hourly_layer) {
@@ -357,6 +411,10 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   update_hour_labels(tick_time);
   update_status_buffer(tick_time);
   update_heart_rate();
+  update_hourly_buffers();
+  if (s_hourly_layer) {
+    layer_mark_dirty(s_hourly_layer);
+  }
 
   // Request weather update every 30 minutes (only if phone is connected)
   if (tick_time->tm_min % WEATHER_POLL_MINUTES == 0 &&
@@ -634,7 +692,7 @@ static void hourly_update_proc(Layer *layer, GContext *ctx) {
                        GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
 
     // UV: a solid color-graded badge with white text, for glanceable color
-    int uvv = (s_weather.loaded && s_weather.hour_uv[i][0]) ? atoi(s_weather.hour_uv[i]) : -1;
+    int uvv = s_hour_uv_val[i];
     char uvtext[8];
     snprintf(uvtext, sizeof(uvtext), "UV%s", s_hour_uv_disp[i]);
     GSize us = measure(uvtext, s_font_16);
@@ -777,7 +835,8 @@ static void init() {
   app_message_register_inbox_dropped(inbox_dropped_callback);
   app_message_register_outbox_failed(outbox_failed_callback);
   app_message_register_outbox_sent(outbox_sent_callback);
-  app_message_open(256, 256);
+  // A weather message is 22 int32 tuples (~245 bytes), so leave headroom.
+  app_message_open(512, 256);
 }
 
 static void deinit() {

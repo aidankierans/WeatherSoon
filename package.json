@@ -39,7 +39,20 @@
       "HOURLY_PRECIP_2": 21,
       "HOURLY_UV_0": 22,
       "HOURLY_UV_1": 23,
-      "HOURLY_UV_2": 24
+      "HOURLY_UV_2": 24,
+      "HOURLY_TEMP_3": 25,
+      "HOURLY_TEMP_4": 26,
+      "HOURLY_TEMP_5": 27,
+      "HOURLY_PRECIP_3": 28,
+      "HOURLY_PRECIP_4": 29,
+      "HOURLY_PRECIP_5": 30,
+      "HOURLY_UV_3": 31,
+      "HOURLY_UV_4": 32,
+      "HOURLY_UV_5": 33,
+      "CURRENT_TEMP": 34,
+      "CURRENT_UV": 35,
+      "CURRENT_TIME": 36,
+      "WEATHER_BASE_TIME": 37
     },
     "resources": {
       "media": [

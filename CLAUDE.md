@@ -19,15 +19,17 @@ Run `pebble clean` when adding or removing messageKeys in package.json — the b
 ## Structure
 
 - `src/c/main.c` — watchface C code (UI, tick handler, persistent storage, weather message handling)
-- `src/pkjs/index.js` — companion JS (geolocation, Open-Meteo weather API, BigDataCloud reverse geocoding)
+- `src/pkjs/index.js` — companion JS (geolocation, Open-Meteo weather API)
 - `src/pkjs/config.js` — Clay settings page config
 - `package.json` — app metadata, message keys, font resources
 
 ## Key conventions
 
 - Weather polling interval is defined as `WEATHER_POLL_MINUTES` in both `main.c` and `index.js` — keep them in sync
-- Persistent storage keys: `SETTINGS_KEY = 1` (accent color), `WEATHER_KEY = 2` (cached weather data)
-- Temperature unit is hardcoded to Fahrenheit in the Open-Meteo API call
+- Hours of forecast per fetch is defined as `FORECAST_HOURS` in both `main.c` and `index.js` — keep them in sync, along with the `HOURLY_*_0..N` message keys in package.json. The watch picks which of those hours to show from its own clock (relative to `WEATHER_BASE_TIME`), so the display stays aligned with the hour labels between fetches.
+- Open-Meteo's `precipitation_probability` covers the *preceding* hour, so `index.js` sends the next hour's value for each slot.
+- Persistent storage keys: `SETTINGS_KEY = 1` (accent color), `WEATHER_KEY = 2` (cached weather data; loaded only on an exact size match, so changing `WeatherCache` discards old caches)
+- Temperature unit comes from the `TempUnit` Clay setting (Fahrenheit by default)
 
 ## Marketing screenshots
 
